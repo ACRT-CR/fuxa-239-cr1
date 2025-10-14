@@ -33,8 +33,11 @@ function init(_server, _runtime) {
     return new Promise(function (resolve, reject) {
         if (runtime.settings.disableServer !== false) {
             apiApp = express();
-            apiApp.use(morgan(['combined', 'common', 'dev', 'short', 'tiny'].
-                includes(runtime.settings.logApiLevel) ? runtime.settings.logApiLevel : 'combined'));
+
+            if (runtime.settings.logApiLevel !== 'none') {
+                apiApp.use(morgan(['combined', 'common', 'dev', 'short', 'tiny'].
+                    includes(runtime.settings.logApiLevel) ? runtime.settings.logApiLevel : 'combined'));
+            }
 
             var maxApiRequestSize = runtime.settings.apiMaxLength || '100mb';
             apiApp.use(bodyParser.json({limit:maxApiRequestSize}));
@@ -132,11 +135,16 @@ function init(_server, _runtime) {
              * GET Heartbeat to check token
              */
             apiApp.post('/api/heartbeat', authJwt.verifyToken, function (req, res) {
+
+                if (res.headersSent) {
+                    return;
+                }
+
                 if (!runtime.settings.secureEnabled) {
-                    res.end();
-                } else if (res.statusCode === 403) {
-                    runtime.logger.error("api post heartbeat: Tocken Expired");
-                } else if (req.body.params) {
+                    return res.end();
+                }
+
+                if (req.body.params) {
                     const token = authJwt.getNewToken(req.headers)
                     if (token) {
                         res.status(200).json({
@@ -152,6 +160,7 @@ function init(_server, _runtime) {
                         token: authJwt.getGuestToken()
                     });
                 } else {
+
                     res.end();
                 }
             });
